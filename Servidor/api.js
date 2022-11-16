@@ -95,8 +95,24 @@ app.get('/transportePerto', async (req, res, next) => {
 
 
 const dados = await db.query(
-  "SELECT 6371 * acos( cos( radians(($1)) )  * cos( radians( latitude ) )   * cos( radians( ($2) ) - radians(longitude) )   + sin( radians(($1)) ) * sin( radians( latitude ) ) )  AS distance, latitude, longitude, codigo   from motorista  where codigo_rota = ($3)   order by distance limit 1",
-  [latitude, longitude, rota]
+  " SELECT  "+
+  " 6371 * acos( cos( radians(($1)) )  * cos( radians( motorista.latitude ) )   * cos( radians( ($2) ) - radians(motorista.longitude) )   + sin( radians(($1)) ) * sin( radians( motorista.latitude ) ) )  AS distance, "+
+  " motorista.latitude , "+
+  " motorista.longitude , "+
+  " motorista.codigo  "+
+  " from  "+
+  "   motorista, "+
+  "   motorista_parada, "+
+  "   parada "+
+  " where  "+
+  "   motorista_parada.codigo_rota = ($3) "+
+  " and parada.latitude = ($1) "+
+  " and parada.longitude = ($2) "+
+  " and parada.codigo = motorista_parada.codigo_parada "+
+  " and motorista_parada.status = 'A' "+
+  " order by distance"+ 
+  " limit 1	",
+    [latitude, longitude, rota]
 )
 console.log('Dados:',dados.rows)
 
