@@ -6,26 +6,49 @@ import SelectList from 'react-native-dropdown-select-list'
 import Local from '@react-native-community/geolocation'
 
 
-export default function Search(props)
+export default function PerfilMotorista(props)
 {
 
     const [InitialLatitude, setLatitude] = useState(0);
     const [InitialLongitude, setLongitude] = useState(0);
-
-    useEffect(() => {
-            
-        if(parada)
-    {
-            goToMap();
-    }
-    
+    const [selecionou, setSelecionou] = useState(false);
+    const [botao, setBotao] = useState(true)
+    const [rota, setRota] = useState(0);
+    const [idMotorista, setIdMotorista] = useState(props.route.params.id);
+    const [rotas=[], setRotas] = useState({
+        body: {
+            rotas:[]
+        }
     })
+       
 
-    useEffect(()=>{
-        
+useEffect(() => {
+    const interval = setInterval(() => {
         Local.getCurrentPosition((pos)=>{
             setLatitude(pos.coords.latitude.toFixed(6))
             setLongitude(pos.coords.longitude.toFixed(6))
+            
+            console.log(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6))
+            
+            async function sendGeolocation() {
+                let response = await fetch('http://10.0.2.2:3031/atualizaMotorista', {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: idMotorista,
+                        latitude: pos.coords.latitude.toFixed(6),
+                        longitude: pos.coords.longitude.toFixed(6)
+                      })
+                })    
+            }
+
+            if(selecionou && rota != 0 && pos.coords.latitude != 0 && pos.coords.longitude != 0){
+                sendGeolocation();
+                console.log("chama SendGeolocation")
+            }    
         }, 
         (erro) => {
             alert('Erro: ' + erro.message)
@@ -33,9 +56,14 @@ export default function Search(props)
         , {
             enableHighAccuracy: true, timeout: 10000
         });
-    });
+ 
+      
 
-    useEffect(()=> {
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [rota, Local, selecionou]);
+
+      useEffect(()=> {
         async function sendServer(){
             let response = await fetch('http://10.0.2.2:3031/rotas', {
                 method: 'GET',
@@ -52,44 +80,28 @@ export default function Search(props)
         sendServer();
     }, [])
 
+    // useEffect(()=>{
+        
+        // Local.getCurrentPosition((pos)=>{
+        //     setLatitude(pos.coords.latitude.toFixed(6))
+        //     setLongitude(pos.coords.longitude.toFixed(6))
+        // }, 
+        // (erro) => {
+        //     alert('Erro: ' + erro.message)
+        // }
+        // , {
+        //     enableHighAccuracy: true, timeout: 10000
+        // });
+    // });
+
     console.log(InitialLatitude, InitialLongitude)
 
-    const [rotas=[], setRotas] = useState({
-        body: {
-            rotas:[]
-        }
-    })
-    const [parada, setParada] = useState(false)
-    const [busca, setBusca] = useState(0);
-    
-    function goToMap() {
-        props.navigation.navigate('Map', {
-            rota: busca,
-            parada: parada
-        
-        })
-    }
-       
-    async function sendForm(){
 
-
-        let paradasResponse = await fetch('http://10.0.2.2:3031/paradaPerto?rota='+busca+'&longitude='+InitialLongitude+'&latitude='+InitialLatitude, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        }
-    })
-    
-    setParada(await paradasResponse.json())
-
-    
-    }
 
 
     let buttonEnable;
 
-    if(busca != 0){
+    if(rota != 0){
         buttonEnable = true
     } else {
         buttonEnable = false
@@ -101,23 +113,16 @@ export default function Search(props)
         <View style={css.content}>
                 <View style={css.textsBox}>
                     <View style={css.headerBox}>
-                        <Text style={css.textPage}>Escolha uma rota de transporte</Text>
-                        <Text style={css.textPage}>e descubra </Text>
-                        <Text style={css.titlePage}>QuantoTempoFalta? </Text>
-                    </View>
-                    <View >
-                        <Text style={css.textPage}>Para ele chegar até o ponto</Text>        
-                        <Text style={css.textPage}>de ônibus</Text>        
+                        <Text style={css.textPage}>Selecione a rota que </Text>
+                        <Text style={css.textPage}>você irá fazer </Text>
                     </View>
                 </View>
-    
                 <View style= {css.pickerBox}>
                     <Picker 
-                        selectedValue={busca}
+                        selectedValue={rota}
                         onValueChange={(itemValue, itemIndex) =>
-                            setBusca(itemValue)
+                            setRota(itemValue)
                         }                    
-                        
                         >
                         <Picker.Item label="Escolha a rota desejada" value="0"  />
                         {rotas.body.rotas.map(({rota, codigo})=> 
@@ -129,14 +134,20 @@ export default function Search(props)
     
                 </View>
                 
-    
-                <TouchableOpacity disabled={(!buttonEnable) ? true : false} onPress={() => sendForm()} style={(!buttonEnable) ? css.buttonDisabled : css.button}>
+                {
+                (!selecionou)
+                    ?
+                <TouchableOpacity disabled={(!buttonEnable) ? true : false} onPress={() => setSelecionou(true)} style={(!buttonEnable) ? css.buttonDisabled : css.button}>
                     <Text style={css.textButton}>{(!buttonEnable) ? "Escolha acima      ": "Entrar"} </Text>
                 </TouchableOpacity>
-    
-                <TouchableOpacity onPress={() => {props.navigation.navigate('LoginMotorista')}} style={css.loginButton}>
-                    <Text style={css.textLoginButton}>Fazer login (motorista)</Text>
+                :
+                <TouchableOpacity onPress={() => setSelecionou(false)} style={css.buttonDisabled}>
+                    <Text style={css.textButton}>Rota em atividade </Text>
                 </TouchableOpacity>
+    
+                }
+    
+
                 
             </View>
             
@@ -149,6 +160,16 @@ export default function Search(props)
     
     
     const css = StyleSheet.create({
+    
+    
+    
+        recic: {
+            width: 350,
+            height: 350,
+            position: 'absolute',
+            left: vw(-40),
+            top: vh(-10),
+        },
     
         content: {
             width: vw(100),
@@ -224,18 +245,7 @@ export default function Search(props)
         textButton: {
             fontFamily: 'Roboto-Medium',
             color: '#FFFFFF',
-        },
-        loginButton: {
-            height: vh(10),
-            width: vw(50),
-            left: 10,
-            bottom: -50,
-            position: 'absolute'
-        },
-        textLoginButton: {
-            color: '#FFCE21',
-            fontWeight: 'bold'
         }
-        
+    
     })
     

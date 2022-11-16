@@ -152,6 +152,67 @@ if(dados.rows.length !== 0)
 
 })
 
+// Atualiza geolocalizacao motorista
+app.post('/atualizaMotorista', async (req, res, next) => { 
+  const { id, latitude, longitude } = req.body;
+
+  console.log(id, latitude, longitude)
+
+  const atualizar = await db.query(
+    'UPDATE motorista SET latitude = ($1), longitude = ($2) WHERE codigo = ($3)',
+    [latitude, longitude, id]
+  ).then(
+    res.status(201).send({
+        message: "Rota Cadastrada",
+        body: {
+          
+        },
+        
+    })).catch((error) => {
+    console.log(error)
+})
+
+const dados = await db.query(
+
+" select  " +
+" 	6371 * acos( cos( radians((motorista.latitude)) )  * cos( radians( parada.latitude ) )   * cos( radians( (motorista.longitude) ) - radians(parada.longitude) )   + sin( radians((motorista.latitude)) ) * sin( radians( parada.latitude ) ) )  AS distance, " +
+" 	motorista_parada.codigo_motorista, " +
+" 	motorista_parada.codigo_parada, " +
+" 	motorista_parada.codigo_rota, " +
+" 	motorista_parada.status, " +
+" 	motorista_parada.data_criacao " +
+" from  " +
+" 	motorista, motorista_parada, parada  " +
+" where " +
+" 	motorista.codigo = ($1) " +
+" AND motorista.codigo = motorista_parada.codigo_motorista " +
+" AND motorista.codigo_rota = motorista_parada.codigo_rota " +
+" AND motorista_parada.codigo_parada = parada.codigo " +
+" AND motorista_parada.status = 'A' "+
+" order by distance",
+  [id]
+)
+
+if(dados.rows.length != 0)
+{
+  dados.rows.map( ({distance, codigo_motorista, codigo_parada, codigo_rota, status, data_criacao}) => {
+    console.log(distance)
+    if(distance < 0.05){
+      const atualizar = db.query(
+        "UPDATE motorista_parada SET status = 'I' WHERE codigo_motorista = ($1) AND codigo_parada = ($2) AND codigo_rota = ($3) AND status = 'A' AND data_criacao = ($4)",
+        [codigo_motorista, codigo_parada, codigo_rota, data_criacao]
+      )
+    }
+  })
+
+} else {
+
+}
+
+
+
+}) 
+
 // Cadastrar Rotas
     app.post('/cadastrarRota', async (req, res, next) => { 
         const { rota } = req.body;
@@ -228,6 +289,28 @@ app.post('/cadastrarMotorista', async (req, res, next) => {
 })
 }) 
 
+
+// Cadastrar Motorista
+app.post('/login', async (req, res, next) => { 
+  const { login, senha } = req.body;
+
+  const loginMotorista = await db.query(
+    "SELECT codigo FROM motorista WHERE login = ($1) AND senha = ($2)",
+    [login, senha]
+  )
+
+if(loginMotorista.rows.length != 0){
+  res.status(201).send({
+    message: "Login efetuado",
+    id: loginMotorista.rows[0].codigo
+  })
+} else {
+  res.status(400).send({
+    message: "Falha"
+  })
+}
+
+}) 
 
 
 var server = http.createServer(app); 

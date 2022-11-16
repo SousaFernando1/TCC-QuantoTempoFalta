@@ -1,11 +1,9 @@
 import React, {useState, useEffect, useRef} from 'react';
 import { vw, vh } from 'react-native-expo-viewport-units';
-import { StyleSheet, Text, TouchableOpacity, View, Image} from 'react-native';
+import { StyleSheet, Text, View, Modal, TouchableOpacity} from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
-import { color, set } from 'react-native-reanimated';
 import Local from '@react-native-community/geolocation'
-import { useFocusEffect } from '@react-navigation/native';
 
 
 
@@ -15,7 +13,8 @@ export default function Map( props ){
     const GOOGLE_MAPS_APIKEY = 'AIzaSyAgJYCESl72KvjaLR6cFzQVssP357Is5-M';
     const [InitialLatitude, setLatitude] = useState(0);
     const [InitialLongitude, setLongitude] = useState(0);
-    const [duracao, setDuracao] = useState(0)
+    const [duracao, setDuracao] = useState(1)
+    const [modal, setModal] = useState(false)
     const [rota, setRota] = useState(false);
     const [handleInit, setHandleInit] = useState(false);
     const [parada, setParada] = useState({
@@ -36,33 +35,6 @@ export default function Map( props ){
     });
 
 
-    
-
-    useEffect(()=>{
-        
-        Local.getCurrentPosition((pos)=>{
-            setLatitude(pos.coords.latitude.toFixed(6))
-            setLongitude(pos.coords.longitude.toFixed(6))
-        }, 
-        (erro) => {
-            alert('Erro: ' + erro.message)
-        }
-        , {
-            enableHighAccuracy: true, timeout: 10000
-        });
-    });
-
-
-
-
-const [calloutIsRendered, setCalloutIsRendered] = useState(false);
-const [markers = [], setMarkers] = useState();
-
-//Pegar a rota que o usuário selecionou.
-//Obter a parada mais próxima dele a partir dessa rota.
-//Pegar o ônibus mais próximo dele a partir dessa rota.
-
-
 useEffect(()=> {
     async function resMarkers(){
         setParada(await props.route.params.parada)
@@ -76,17 +48,13 @@ useEffect(()=> {
 if (markerRef && markerRef.current && markerRef.current.showCallout) {
     markerRef.current.showCallout();
     
-//     console.log("initialTransporte",initialTransporte.body.transporte)
-//     console.log("Transporte",transporte.body.transporte)
-
 
 }
 
 useEffect(() => {
     const interval = setInterval(() => {
         async function sendServer(){
-            console.log("rota:", rota, "lat:", InitialLatitude, "lon:", InitialLongitude)
-            let transporteResponse = await fetch('http://192.168.0.105:3031/transportePerto?rota='+rota+'&longitude='+InitialLongitude+'&latitude='+InitialLatitude, {
+            let transporteResponse = await fetch('http://10.0.2.2:3031/transportePerto?rota='+rota+'&longitude='+props.route.params.parada.body.paradas[0].longitude+'&latitude='+props.route.params.parada.body.paradas[0].latitude, {
                 method: 'GET',
                 headers: {
                     Accept: 'application/json',
@@ -98,12 +66,11 @@ useEffect(() => {
         }
  
         
-        if(rota != false && InitialLatitude != 0 && InitialLongitude != 0){
+        if(rota != false && props.route.params.parada.body.paradas[0].latitude != undefined && props.route.params.parada.body.paradas[0].longitude != undefined){
             sendServer();
         }    
 
-
-    }, 5000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [rota, InitialLatitude, InitialLongitude]);
 
@@ -116,17 +83,19 @@ useEffect(() => {
                 latitudeDelta: 0.012,
                 longitudeDelta: 0.012,
             };
-            console.log("MUDOU A COORDENADA")
             markerRef.current.animateMarkerToCoordinate(newCoordinate,1000);//  number of duration between points
           }
-
+          if(duracao < 0.5){
+            setModal(true)
+          }
+          
     })
+
   }, [transporte])
 
   useEffect(()=> {
     transporte.body.transporte.map(()=>{
         if(!handleInit) {
-            console.log("Passou no initial")
             setOriginTransporte(transporte)
             setHandleInit(true)
         }
@@ -140,7 +109,32 @@ useEffect(() => {
   }
 
     return(
+        
         <View style={css.container}>
+        <Modal
+         animationType="fade"
+         transparent={true}
+         visible={modal}
+         style={{opacity: 0.5}}
+        >
+          <View style={css.containerModal}>
+            <View style={css.contentModal}>
+              <View style={css.headerModal}>
+                <Text style={css.modalTitulo}>Seu transporte chegou!</Text>
+              </View>
+              <View style={css.hrModal}/>
+              <View style={css.footerModal}>
+                <TouchableOpacity
+                  style={css.closeModal}
+                  onPress={() => props.navigation.navigate('Search')}
+                >
+                    <Text>Voltar para o menu</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+        </Modal>
             <MapView 
             style={css.mapStyle}
             initialRegion={{
@@ -192,6 +186,7 @@ useEffect(() => {
                     onReady= { result => {
                         setDuracao(result.duration)
                     }}
+                    strokeWidth={0}
                 />
                 })}
 
@@ -283,5 +278,61 @@ const css = StyleSheet.create({
     marker: {
         width: vw(10),
         height: vh(10)
-    }
+    },
+    containerModal: {
+        height: vh(100),
+        width: vw(100),
+        backgroundColor: 'rgba(100,100,100, 0.7)',
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      },  
+      contentModal: {   
+        margin: vw(10),
+        backgroundColor: "white",  
+        borderRadius: 4,    
+        padding: vw(5),
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: {  
+          width: 0,
+          height: 2
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5
+      },
+      modalTitulo: {
+        color: '#676767',
+        fontWeight: 'bold',
+        fontSize: vw(5),
+        marginBottom: vh(2)
+      },
+      textoModal: {
+        fontSize: vw(3.8), 
+        color: '#676767',
+        textAlign: 'center'
+      },   
+      bodyModal: {
+        paddingHorizontal: vw(8),
+        marginTop: vh(3),
+        marginBottom: vh(3),
+        alignItems: 'center'
+      },
+      hrModal: {
+        borderColor: '#EBEBEB',
+        borderWidth: 1,
+        width: vw(65)
+      },
+      textoCloseModal: {
+        color: '#61E8A7'
+      },
+      closeModal: {
+        marginTop:vh(2),
+        borderRadius: 4,
+        paddingVertical: 5,
+        paddingHorizontal: 25,
+        backgroundColor: "#FFCE21",
+        elevation: 10
+      },
 })
